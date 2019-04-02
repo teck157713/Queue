@@ -2,13 +2,16 @@ import requests
 import json
 import datetime, time
 import base64 
+from PIL import Image
+from io import BytesIO, StringIO
+from flask import send_file
 
-my_token = '713949440:AAHbhittrH-nO870rjM2-rYzNZ0yfzICVII' 
+my_token = '673014859:AAHA64iWDcXp2-ksYRVsrjZHtSO-9CYmsSM' 
 url_base = 'https://api.telegram.org/bot{}/'.format(my_token)
 
-url_smuQueue = 'http://smuqueue.herokuapp.com/getvendors/'
+url_smuQueue = 'http://smuqueue.herokuapp.com/getvendor/'
 
-chat_id = '353514879' 
+chat_id = 66681185 
 
 ########################################################################
 
@@ -31,6 +34,7 @@ def get_updates(offset = None):
 	if offset:
 		url_getUpdates += "&offset={}".format(offset)
 	r = requests.get(url = url_getUpdates)
+	print(r.json())
 	return r.json()
 
 def send_welcome(chat_id):
@@ -45,37 +49,35 @@ def non_existent(chat_id):
 
 def get_QueueImage(userinput):
 
-	params={'Vendor_ID': userinput}
-	r = requests.get(url=url_smuQueue, params=params)
+	params={'Vendor': userinput}
+	r = requests.get(url=url_smuQueue, data=params)
 	d_get = r.json()
 	
-	if d_get['response']['Vendor'] != '':
+	if d_get[0]['Vendor'] != '':
 		try:
-			queue_img_information = r.json()['response']['Queue_Image']
+			print(d_get)
+			
 		except Exception as e:
 			print('No information as of yet. Please check back soon for any updates!')
 
-		output = base64.decodestring(queue_img_information) # decode the image from value to png file
-
-	else:
-		non_existent(chat_id)
+		output = queue_img_information # decode the image from value to png file
 
 	return output
 
 def get_Menu(userinput):
 
-	params={'Vendor_ID': userinput}
-	r = requests.get(url=url_smuQueue, params=params)
+	params={'Vendor': userinput}
+	r = requests.post(url=url_smuQueue, data=params)
 	d_get = r.json()
-	
-	if d_get['response']['Vendor'] != '':
+
+	if d_get[0]['Vendor'] != '':
 		try:
-			menu_img_information = r.json()['response']['Menu']
+			menu_img_information = d_get[0]['Menu']
+			queue_img_information = d_get[0]['Queue_Image']
 		except Exception as e:
 			print('No information as of yet. Please check back soon for any updates!')
-
-		output = base64.decodestring(menu_img_information)  # decode the image from value to png file
-
+		
+		output = [menu_img_information, queue_img_information]
 	return output
 
 # def get_Analysis(userinput):
@@ -105,15 +107,23 @@ def listen_and_reply(updates):
 		try:
 			userinput = update['message']['text']
 			chat_id = update['message']['chat']['id']
-			send_msg(get_Menu(userinput),chat_id)
-			send_msg(get_QueueImage(userinput),chat_id)
-			# send_msg(get_Analysis(userinput),chat_id)
+			output = get_Menu(userinput)
+			img= BytesIO(base64.b64decode(output[0][2:-1]))
+			img2= BytesIO(base64.b64decode(output[1][2:-1]))
+			sendphoto(img,chat_id)
+			sendphoto(img2,chat_id)
 		except Exception as e:
 			print(e)
 
 def send_msg(output,chat_id):
 	params_send = {'chat_id':chat_id,'text':output}
 	r = requests.post(url_sendMsg,params_send)
+	return r.json()
+
+def sendphoto(output,chat_id):
+	files = {'photo' : output}
+	data = {"chat_id": chat_id}
+	r = requests.post(url_sendPhoto,files=files,data=data)
 	return r.json()
 
 send_welcome(chat_id)	
